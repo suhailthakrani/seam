@@ -4,13 +4,19 @@ import { RegisterUserDto } from '../dto/register_user.dto';
 import { UpdateUserDto } from '../dto/update_user.dto';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '@/prisma/prisma.service';
+import { JwtService } from '@nestjs/jwt';
+import { JwtPayload } from '../interfaces/jwtpayload.interface';
+import { AuthResponse } from '../interfaces/auth_response.interface';
 
 type UserEntity = AuthUser & { password: string };
 
 @Injectable()
 export class AuthService {
 
-    constructor(private readonly prisma: PrismaService) { }
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly jwtService: JwtService,
+    ) { }
 
     private async getUserByEmail(email: string): Promise<UserEntity | null> {
         return this.prisma.user.findUnique({
@@ -37,7 +43,22 @@ export class AuthService {
         return result as AuthUser;
     }
 
-    async createUser(userData: RegisterUserDto): Promise<AuthUser> {
+    private async createAuthResponse(user: AuthUser): Promise<AuthResponse> {
+        const payload: JwtPayload = {
+            sub: user.id,
+            email: user.email,
+            role: user.role,
+        };
+
+        const accessToken = await this.jwtService.signAsync(payload);
+
+        return {
+            user,
+            accessToken,
+        };
+    }
+
+    async createUser(userData: RegisterUserDto): Promise<AuthResponse> {
         if (await this.getUserByEmail(userData.email)) {
             throw new ConflictException('Email already exists');
         }
@@ -45,7 +66,7 @@ export class AuthService {
 
         const id = crypto.randomUUID(); // Generate a new UUID if not provided
 
-        return this.prisma.user.create({
+        const user = await this.prisma.user.create({
             data: {
                 id: id,
                 name: userData.name,
@@ -54,6 +75,8 @@ export class AuthService {
                 phone: userData.phone,
             },
         }) as unknown as AuthUser;
+
+        return this.createAuthResponse(user);
     }
 
     async updateUser(id: string, updateData: UpdateUserDto): Promise<AuthUser | null> {
@@ -76,6 +99,12 @@ export class AuthService {
         } catch {
             return false;
         }
+    }
+
+    async login(email: string, password: string): Promise<AuthResponse | null> {
+        const user = await this.validateUser(email, password);
+
+        return user ? this.createAuthResponse(user) : null;
     }
 
 }

@@ -4,6 +4,7 @@ import { RegisterUserDto } from '../dto/register_user.dto';
 import { UpdateUserDto } from '../dto/update_user.dto';
 import { AuthService } from '../services/auth.service';
 import { ApiResponse } from '@/common/dtos/api_response.dto';
+import { AuthResponse } from '../interfaces/auth_response.interface';
 import { AuthUser } from '../interfaces/auth_user.interface';
 
 @Controller('auth')
@@ -12,16 +13,18 @@ export class AuthController {
     constructor(private readonly authService: AuthService) {}
 
     @Post('login')
-    async login(@Body() body: LoginUserDto): Promise<ApiResponse<AuthUser | null>> {
-        const user = await this.authService.validateUser(body.email, body.password);
-        
-        return user ? { success: true, message: 'Login successful', data: user, timestamp: new Date().toISOString() } : { success: false, message: 'Invalid credentials', data: null, timestamp: new Date().toISOString() };
+    async login(@Body() body: LoginUserDto): Promise<ApiResponse<AuthResponse | null>> {
+        const auth = await this.authService.login(body.email, body.password);
+
+        return auth
+            ? { success: true, message: 'Login successful', data: auth, timestamp: new Date().toISOString() }
+            : { success: false, message: 'Invalid credentials', data: null, timestamp: new Date().toISOString() };
     }
 
     @Post('register')
-    async register(@Body() body: RegisterUserDto): Promise<ApiResponse<AuthUser | null>> {
-        const user = await this.authService.createUser(body);
-        return { success: true, message: 'User registered successfully', data: user, timestamp: new Date().toISOString() };
+    async register(@Body() body: RegisterUserDto): Promise<ApiResponse<AuthResponse | null>> {
+        const auth = await this.authService.createUser(body);
+        return { success: true, message: 'User registered successfully', data: auth, timestamp: new Date().toISOString() };
     }
 
     @Patch('update')
